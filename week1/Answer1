@@ -1,0 +1,313 @@
+1. **What is the total amount each customer spent at the restaurant?**
+
+select sal.customer\_id,sum(men.price)as spending
+
+from sales sal
+
+join menu men
+
+on sal.product\_id = men.product\_id
+
+groupby sal.customer\_id
+
+![](RackMultipart20240106-1-6ebxji_html_211179f2869593e2.png)
+
+**2. How many days has each customer visited the restaurant?**
+
+select customer\_id,count(distinct order\_date)as [Total Kunjungan]
+
+--hanya munculin 1 data per kolom nya (jadi klo sehari ada 2 orderdate yg ditampilkan hanya 1 karena pakai 'distinct')
+
+from sales
+
+groupby customer\_id
+
+![](RackMultipart20240106-1-6ebxji_html_86b8d19ede8c7bc1.png)
+
+**3. What was the first item from the menu purchased by each customer?**
+
+(SUB QUERY)
+
+select sal.customer\_id, men.product\_name as pembelianpertama
+
+from sales sal
+
+join menu men
+
+on sal.product\_id = men.product\_id
+
+where sal.order\_date =(selectmin(order\_date)
+
+from sales)
+
+groupby sal.customer\_id, men.product\_name
+
+orderby sal.customer\_id
+
+![](RackMultipart20240106-1-6ebxji_html_22fc940bfe40002f.png)
+
+(CTE)
+
+WITH table\_filter as
+
+(select sal.customer\_id, men.product\_name, sal.order\_date,
+
+row\_number()over (partitionby customer\_id orderby order\_date asc)as pembelianpertama
+
+from sales sal
+
+join menu men
+
+on sal.product\_id = men.product\_id
+
+groupby sal.customer\_id, men.product\_name, sal.order\_date)
+
+SELECT\*
+
+from table\_filter
+
+where pembelianpertama = 1
+
+![](RackMultipart20240106-1-6ebxji_html_d4bb616e1a21b913.png)
+
+**4. What is the most purchased item on the menu and how many times was it purchased by all customers?**
+
+#1 kalau mau lihat total sales semua produk tiap customer
+
+SELECT customer\_id, purchase\_count, product\_name
+
+FROM (
+
+SELECT customer\_id, product\_name,COUNT(\*)AS purchase\_count,
+
+DENSE\_RANK()OVER (PARTITIONBY customer\_id ORDERBYCOUNT(\*)DESC)AS rnk
+
+FROM sales
+
+join menu
+
+on sales.product\_id = menu.product\_id
+
+GROUPBY customer\_id, product\_name
+
+) ranked
+
+WHERE rnk = 1
+
+![](RackMultipart20240106-1-6ebxji_html_6191c3d2f762d5e7.png)
+
+#2 kalau mau cari produk dengan sales terbanyak, dan brp sales produk tsb dari tiap customer
+
+select sal.customer\_id, men.product\_name,count(sal.product\_id)as purchase\_count
+
+from sales sal
+
+join menu men
+
+on sal.product\_id = men.product\_id
+
+where sal.product\_id =(
+
+selectmax(product\_id)from sales)
+
+groupby sal.customer\_id, men.product\_name
+
+orderby sal.customer\_id
+
+![](RackMultipart20240106-1-6ebxji_html_e24b236bf42de26f.png)
+
+**5. Which item was the most popular for each customer?**
+
+select sal.customer\_id, men.product\_name
+
+from sales sal
+
+join menu men
+
+on sal.product\_id = men.product\_id
+
+where sal.product\_id =(
+
+selectmax(product\_id)from sales)
+
+groupby sal.customer\_id, men.product\_name
+
+orderby sal.customer\_id
+
+![](RackMultipart20240106-1-6ebxji_html_61c4d5f07361244f.png)
+
+**6. Which item was purchased first by the customer after they became a member?**
+
+select mem.customer\_id, mem.join\_date, men.product\_id, men.product\_name as [pembelian pertama]
+
+from members mem
+
+join sales sal
+
+on mem.customer\_id = sal.customer\_id
+
+join menu men
+
+on sal.product\_id = men.product\_id
+
+where sal.order\_date =(
+
+selectmin(join\_date)
+
+from members)
+
+groupby mem.customer\_id, mem.join\_date, men.product\_id, men.product\_name
+
+orderby mem.customer\_id
+
+![](RackMultipart20240106-1-6ebxji_html_5c5d1dd8d2126d00.png)
+
+_**(ini untuk nampilin semua pembelian setelah jadi member)**_
+
+select mem.customer\_id, mem.join\_date, men.product\_id as [pembelian setelah jadi member], men.product\_name as [nama menu]
+
+from members mem
+
+join sales sal
+
+on mem.customer\_id = sal.customer\_id
+
+join menu men
+
+on sal.product\_id = men.product\_id
+
+where sal.order\_date \>= mem.join\_date
+
+groupby mem.customer\_id, mem.join\_date, men.product\_id, men.product\_name
+
+orderby mem.customer\_id
+
+![](RackMultipart20240106-1-6ebxji_html_82cd5ce3ff7ae3f7.png)
+
+**7. Which item was purchased just before the customer became a member?**
+
+select mem.customer\_id, sal.order\_date, men.product\_id as [pembelian sebelum jadi member], men.product\_name as [nama menu]
+
+from members mem
+
+leftouterjoin sales sal
+
+on mem.customer\_id = sal.customer\_id
+
+join menu men
+
+on sal.product\_id = men.product\_id
+
+where sal.order\_date \< mem.join\_date
+
+groupby mem.customer\_id, sal.order\_date, men.product\_id, men.product\_name
+
+orderby mem.customer\_id
+
+![](RackMultipart20240106-1-6ebxji_html_c36472a29d6cb057.png)
+
+**8. What is the total items and amount spent for each member before they became a member?**
+
+with table\_filter as (
+
+select mem.customer\_id, sal.order\_date,sum(men.price)as harga
+
+from members mem
+
+leftouterjoin sales sal
+
+on mem.customer\_id = sal.customer\_id
+
+join menu men
+
+on sal.product\_id = men.product\_id
+
+where sal.order\_date \< mem.join\_date
+
+groupby mem.customer\_id, sal.order\_date, men.price
+
+)
+
+select customer\_id,sum(harga)as [Total Spending]
+
+from table\_filter
+
+groupby customer\_id
+
+orderby customer\_id
+
+![](RackMultipart20240106-1-6ebxji_html_3c466d40903bb380.png)
+
+**9. If each $1 spent equates to 10 points and sushi has a 2x points multiplier - how many points would each customer have?**
+
+with table\_filter as (
+
+select sal.customer\_id, men.product\_name, men.price,count(sal.product\_id)as penjualan,
+
+case
+
+when men.product\_name ='sushi'then (men.price \* 20 \*count(sal.product\_id))
+
+Else (men.price \* 10 \*count(sal.product\_id))
+
+ENDAS points
+
+from sales sal
+
+join menu men
+
+on sal.product\_id = men.product\_id
+
+groupby sal.customer\_id, men.price, men.product\_name
+
+)
+
+select customer\_id,sum(points)as [Points Achieved]
+
+from table\_filter
+
+groupby customer\_id
+
+orderby customer\_id
+
+![](RackMultipart20240106-1-6ebxji_html_1ba93b47f5ab506.png)
+
+**10. In the first week after a customer joins the program (including their join date) they earn 2x points on all items, not just sushi, how many points do customer A and B have at the end of January?**
+
+with table\_filter as (
+
+select mem.customer\_id, mem.join\_date, men.price,count(sal.product\_id)as penjualan, sal.order\_date,
+
+case
+
+when (sal.order\_date \>= mem.join\_date)then (men.price \* 20 \*count(sal.product\_id))
+
+Else 0 ENDAS points
+
+from sales sal
+
+join menu men
+
+on sal.product\_id = men.product\_id
+
+join members mem
+
+on mem.customer\_id = sal.customer\_id
+
+where sal.order\_date \>= mem.join\_date
+
+groupby mem.customer\_id, mem.join\_date, men.product\_id, men.price, sal.order\_date
+
+)
+
+select customer\_id,sum(points)as [Points Achieved]
+
+from table\_filter
+
+where order\_date \<'2021-02-01'
+
+groupby customer\_id
+
+orderby customer\_id
+
+![](RackMultipart20240106-1-6ebxji_html_1d8d6143534f9837.png)
